@@ -5,7 +5,6 @@ import { FaStar, FaArrowLeft, FaArrowRight } from "react-icons/fa";
 import LoadingSpinner from '../components/LoadingSpinner';
 import './DetailPage.css';
 
-// 接口定义 (无变化)
 interface MovieDetails {
   id: number;
   title: string;
@@ -18,13 +17,9 @@ interface MovieDetails {
   genres: { id: number; name: string }[];
 }
 
-// ------------------- FIX START -------------------
-// 使用类型断言告诉 TypeScript 这些图标是合法的组件
 const StarIcon = FaStar as React.ElementType;
 const ArrowLeftIcon = FaArrowLeft as React.ElementType;
 const ArrowRightIcon = FaArrowRight as React.ElementType;
-// -------------------- FIX END --------------------
-
 
 export default function DetailPage() {
   const { movieId } = useParams<{ movieId: string }>();
@@ -102,7 +97,6 @@ export default function DetailPage() {
               <span>{movie.runtime} min</span>
             </div>
             <div className="detail-rating">
-              {/* FIX: 使用新的变量名 */}
               <StarIcon className="star-icon" />
               <span>{movie.vote_average.toFixed(1)} / 10</span>
             </div>
@@ -112,7 +106,6 @@ export default function DetailPage() {
         </div>
       </div>
       <div className="navigation-arrows">
-        {/* FIX: 使用新的变量名 */}
         <button onClick={() => handleNavigation('prev')}><ArrowLeftIcon /> Previous</button>
         <button onClick={() => handleNavigation('next')}>Next <ArrowRightIcon /></button>
       </div>
