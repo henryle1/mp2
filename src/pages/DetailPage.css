@@ -141,13 +141,47 @@
     align-items: center;
     text-align: center;
   }
+
   .detail-info h1 {
     font-size: 2rem;
   }
+
   .detail-meta {
     justify-content: center;
   }
+
   .overview {
     text-align: left;
   }
+}
+
+.detail-poster.placeholder {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.4);
+  color: #f1f1f1;
+  font-weight: 600;
+  text-align: center;
+}
+
+.official-site {
+  margin-top: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #1e90ff;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.official-site:hover {
+  text-decoration: underline;
+}
+
+.navigation-arrows button:disabled {
+  background: rgba(255, 255, 255, 0.15);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }

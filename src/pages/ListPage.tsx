@@ -1,6 +1,7 @@
 import "./ListPage.css";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { getPopularMovies, searchMovies, getGenres, getMovieDetails } from "../api/tmdb";
+import { useNavigate } from "react-router-dom";
+import { getPopularMovies, searchMovies, getGenres } from "../api/tmdb";
 import { FaStar } from "react-icons/fa";
 import LoadingSpinner from "../components/LoadingSpinner";
 
@@ -11,12 +12,6 @@ interface Movie {
   vote_average: number;
   genre_ids: number[];
   release_date: string;
-}
-
-interface ExpandedMovie extends Movie {
-  overview?: string;
-  runtime?: number;
-  tagline?: string;
 }
 
 interface Genre {
@@ -33,35 +28,21 @@ export default function ListPage() {
   const [genres, setGenres] = useState<Genre[]>([]);
   const [selectedGenres, setSelectedGenres] = useState<number[]>([]);
   const [sortOption, setSortOption] = useState("popularity.desc");
-  const [selectedMovie, setSelectedMovie] = useState<ExpandedMovie | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+
+  const navigate = useNavigate();
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const filterPanelRef = useRef<HTMLDivElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    Promise.all([getPopularMovies(), getGenres()]).then(([movies, genres]) => {
-      setMovies(movies);
-      setGenres(genres);
+    Promise.all([getPopularMovies(), getGenres()]).then(([popularMovies, fetchedGenres]) => {
+      setMovies(popularMovies);
+      setGenres(fetchedGenres);
       setIsLoading(false);
     });
   }, []);
-
-  useEffect(() => {
-    if (!selectedMovie) {
-      return undefined;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setSelectedMovie(null);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedMovie]);
 
   useEffect(() => {
     if (!isFilterOpen) {
@@ -95,16 +76,18 @@ export default function ListPage() {
     };
   }, [isFilterOpen]);
 
-  const handleSearch = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const q = e.target.value;
-    setQuery(q);
+  const handleSearch = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextQuery = event.target.value;
+    setQuery(nextQuery);
     setIsLoading(true);
 
     try {
-      if (q.length > 1) {
-        setMovies(await searchMovies(q));
+      if (nextQuery.length > 1) {
+        const results = await searchMovies(nextQuery);
+        setMovies(results);
       } else {
-        setMovies(await getPopularMovies());
+        const popularMovies = await getPopularMovies();
+        setMovies(popularMovies);
       }
     } finally {
       setIsLoading(false);
@@ -131,7 +114,6 @@ export default function ListPage() {
     const shouldReset =
       query.length > 0 || selectedGenres.length > 0 || sortOption !== "popularity.desc";
 
-    setSelectedMovie(null);
     setQuery("");
     setSelectedGenres([]);
     setSortOption("popularity.desc");
@@ -140,11 +122,15 @@ export default function ListPage() {
     if (shouldReset) {
       setIsLoading(true);
       getPopularMovies()
-        .then((popular) => setMovies(popular))
+        .then((popularMovies) => setMovies(popularMovies))
         .finally(() => setIsLoading(false));
     }
 
     searchInputRef.current?.focus();
+  };
+
+  const handleOpenGallery = () => {
+    navigate("/gallery");
   };
 
   const filteredAndSortedMovies = useMemo(() => {
@@ -178,50 +164,14 @@ export default function ListPage() {
     return result;
   }, [movies, selectedGenres, sortOption]);
 
-  const genreMap = useMemo(() => {
-    const map = new Map<number, string>();
-    genres.forEach((genre) => {
-      map.set(genre.id, genre.name);
-    });
-    return map;
-  }, [genres]);
-
-  const getGenreLabels = (movie: Movie) => {
-    const names = movie.genre_ids
-      .map((id) => genreMap.get(id))
-      .filter((name): name is string => Boolean(name));
-
-    return names.length > 0 ? names.join(", ") : "Unknown";
-  };
-
-  const formatReleaseDate = (date: string) => {
-    if (!date) {
-      return "Unknown";
-    }
-
-    const releaseDate = new Date(date);
-    if (Number.isNaN(releaseDate.getTime())) {
-      return "Unknown";
-    }
-
-    return releaseDate.toLocaleDateString();
-  };
-
-  const fetchExpandedMovie = async (movie: Movie) => {
-    try {
-      const details = await getMovieDetails(movie.id);
-      setSelectedMovie({ ...movie, ...details });
-    } catch (error) {
-      console.error("Failed to fetch movie details", error);
-      setSelectedMovie(movie);
-    }
-  };
+  const movieIds = useMemo(
+    () => filteredAndSortedMovies.map((movie) => movie.id),
+    [filteredAndSortedMovies]
+  );
 
   const handleCardClick = (movie: Movie) => {
-    fetchExpandedMovie(movie);
+    navigate(`/movie/${movie.id}`, { state: { movieIds } });
   };
-
-  const closeModal = () => setSelectedMovie(null);
 
   return (
     <div className="list-page">
@@ -230,6 +180,9 @@ export default function ListPage() {
       <div className="page-actions">
         <button type="button" className="page-action-btn" onClick={handleGoHome}>
           Home
+        </button>
+        <button type="button" className="page-action-btn" onClick={handleOpenGallery}>
+          Gallery
         </button>
       </div>
 
@@ -291,7 +244,7 @@ export default function ListPage() {
         <select
           className="sort-dropdown"
           value={sortOption}
-          onChange={(e) => setSortOption(e.target.value)}
+          onChange={(event) => setSortOption(event.target.value)}
         >
           <option value="popularity.desc">Sort by Popularity</option>
           <option value="rating.desc">Rating (High to Low)</option>
@@ -333,55 +286,6 @@ export default function ListPage() {
               </div>
             </button>
           ))}
-        </div>
-      )}
-
-      {selectedMovie && (
-        <div className="movie-info-modal-backdrop" onClick={closeModal} role="presentation">
-          <div className="movie-info-modal" onClick={(event) => event.stopPropagation()}>
-            <button
-              type="button"
-              className="modal-close-btn"
-              onClick={closeModal}
-              aria-label="Close movie info"
-            >
-              X
-            </button>
-            <div className="modal-content">
-              {selectedMovie.poster_path ? (
-                <img
-                  src={`https://image.tmdb.org/t/p/w300${selectedMovie.poster_path}`}
-                  alt={`${selectedMovie.title} poster`}
-                  className="modal-poster"
-                />
-              ) : (
-                <div className="modal-poster modal-poster--placeholder">No Image</div>
-              )}
-              <div className="modal-details">
-                <h2>{selectedMovie.title}</h2>
-                {selectedMovie.tagline && (
-                  <p className="modal-tagline">"{selectedMovie.tagline}"</p>
-                )}
-                <p>
-                  <strong>Rating:</strong> {selectedMovie.vote_average.toFixed(1)}
-                </p>
-                <p>
-                  <strong>Release Date:</strong> {formatReleaseDate(selectedMovie.release_date)}
-                </p>
-                <p>
-                  <strong>Genres:</strong> {getGenreLabels(selectedMovie)}
-                </p>
-                {selectedMovie.runtime && (
-                  <p>
-                    <strong>Runtime:</strong> {selectedMovie.runtime} mins
-                  </p>
-                )}
-                {selectedMovie.overview && (
-                  <p className="modal-overview">{selectedMovie.overview}</p>
-                )}
-              </div>
-            </div>
-          </div>
         </div>
       )}
     </div>
