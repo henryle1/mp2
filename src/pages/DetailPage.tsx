@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { FaStar, FaArrowLeft, FaArrowRight } from "react-icons/fa";
 import { getMovieDetails } from "../api/tmdb";
-import LoadingSpinner from "../components/LoadingSpinner";
 import "./DetailPage.css";
 
 interface MovieDetails {
@@ -12,10 +11,13 @@ interface MovieDetails {
   poster_path: string | null;
   backdrop_path: string | null;
   vote_average: number;
+  vote_count: number;
   release_date: string;
   runtime: number;
   genres: { id: number; name: string }[];
   homepage?: string | null;
+  tagline?: string | null;
+  original_language: string;
 }
 
 const StarIcon = FaStar as React.ElementType;
@@ -111,7 +113,7 @@ export default function DetailPage() {
   };
 
   if (isLoading) {
-    return <LoadingSpinner />;
+    return <div className="loading">Loading...</div>;
   }
 
   if (error) {
@@ -122,63 +124,107 @@ export default function DetailPage() {
     return <div className="error-message">Movie not found.</div>;
   }
 
-  const backdropUrl = movie.backdrop_path
-    ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`
-    : "";
-
   const posterUrl = movie.poster_path
     ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-    : "";
+    : null;
+
+  const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : null;
+  const formattedReleaseDate = movie.release_date
+    ? new Date(movie.release_date).toLocaleDateString()
+    : "Unknown";
+  const runtimeLabel = movie.runtime ? `${movie.runtime} min` : "Runtime unknown";
+  const ratingLabel = `${movie.vote_average.toFixed(1)} / 10 (${movie.vote_count} votes)`;
+  const languageLabel = movie.original_language.toUpperCase();
 
   return (
-    <div className="detail-page" style={{ backgroundImage: `url(${backdropUrl})` }}>
-      <div className="backdrop-overlay" />
-      <div className="detail-content">
-        <button onClick={() => navigate("/")} className="back-button">
-          Back to List
-        </button>
-        <div className="detail-main">
-          {posterUrl ? (
-            <img src={posterUrl} alt={movie.title} className="detail-poster" />
-          ) : (
-            <div className="detail-poster placeholder">No Poster Available</div>
-          )}
-          <div className="detail-info">
-            <h1>
-              {movie.title} ({movie.release_date.substring(0, 4)})
-            </h1>
-            <div className="detail-meta">
-              <span>{movie.release_date}</span>
-              <span>|</span>
-              <span className="genres">{movie.genres.map((genre) => genre.name).join(", ")}</span>
-              <span>|</span>
-              <span>{movie.runtime} min</span>
-            </div>
-            <div className="detail-rating">
-              <StarIcon className="star-icon" />
-              <span>{movie.vote_average.toFixed(1)} / 10</span>
-            </div>
-            {movie.overview && (
-              <>
-                <h3>Overview</h3>
-                <p className="overview">{movie.overview}</p>
-              </>
+    <div className="detail-page">
+      <div className="detail-wrapper">
+        <header className="detail-header">
+          <button type="button" className="back-button" onClick={() => navigate("/")}>
+            Back to List
+          </button>
+          <div className="detail-stepper">
+            <button
+              type="button"
+              onClick={() => handleNavigation("prev")}
+              disabled={!canNavigateBetweenMovies}
+            >
+              <ArrowLeftIcon /> Previous
+            </button>
+            <button
+              type="button"
+              onClick={() => handleNavigation("next")}
+              disabled={!canNavigateBetweenMovies}
+            >
+              Next <ArrowRightIcon />
+            </button>
+          </div>
+        </header>
+
+        <article className="detail-card">
+          <div className="detail-poster-container">
+            {posterUrl ? (
+              <img src={posterUrl} alt={movie.title} className="detail-poster" />
+            ) : (
+              <div className="detail-poster placeholder">No Poster Available</div>
             )}
+          </div>
+
+          <div className="detail-body">
+            <div className="detail-title-group">
+              <h1 className="detail-title">
+                {movie.title}
+                {releaseYear ? <span className="detail-year">({releaseYear})</span> : null}
+              </h1>
+              {movie.tagline && <p className="detail-tagline">{movie.tagline}</p>}
+            </div>
+
+            <dl className="detail-meta">
+              <div>
+                <dt>Release Date</dt>
+                <dd>{formattedReleaseDate}</dd>
+              </div>
+              <div>
+                <dt>Runtime</dt>
+                <dd>{runtimeLabel}</dd>
+              </div>
+              <div>
+                <dt>Language</dt>
+                <dd>{languageLabel}</dd>
+              </div>
+              <div>
+                <dt>Rating</dt>
+                <dd className="detail-rating">
+                  <StarIcon className="star-icon" /> {ratingLabel}
+                </dd>
+              </div>
+            </dl>
+
+            <div className="detail-genres">
+              {movie.genres.map((genre) => (
+                <span key={genre.id}>{genre.name}</span>
+              ))}
+            </div>
+
+            {movie.overview && (
+              <section className="detail-section">
+                <h2>Overview</h2>
+                <p>{movie.overview}</p>
+              </section>
+            )}
+
             {movie.homepage && (
-              <a href={movie.homepage} target="_blank" rel="noreferrer" className="official-site">
+              <a
+                href={movie.homepage}
+                target="_blank"
+                rel="noreferrer"
+                className="detail-link"
+              >
                 Official Website
               </a>
             )}
           </div>
-        </div>
-      </div>
-      <div className="navigation-arrows">
-        <button type="button" onClick={() => handleNavigation("prev")} disabled={!canNavigateBetweenMovies}>
-          <ArrowLeftIcon /> Previous
-        </button>
-        <button type="button" onClick={() => handleNavigation("next")} disabled={!canNavigateBetweenMovies}>
-          Next <ArrowRightIcon />
-        </button>
+        </article>
       </div>
     </div>
   );

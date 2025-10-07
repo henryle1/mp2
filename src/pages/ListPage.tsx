@@ -1,9 +1,14 @@
 import "./ListPage.css";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { getPopularMovies, searchMovies, getGenres } from "../api/tmdb";
 import { FaStar } from "react-icons/fa";
-import LoadingSpinner from "../components/LoadingSpinner";
 
 interface Movie {
   id: number;
@@ -19,6 +24,13 @@ interface Genre {
   name: string;
 }
 
+interface MovieListResponse {
+  page: number;
+  results: Movie[];
+  total_pages: number;
+  total_results: number;
+}
+
 const StarIcon = FaStar as React.ElementType;
 
 export default function ListPage() {
@@ -29,6 +41,8 @@ export default function ListPage() {
   const [selectedGenres, setSelectedGenres] = useState<number[]>([]);
   const [sortOption, setSortOption] = useState("popularity.desc");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   const navigate = useNavigate();
 
@@ -37,12 +51,41 @@ export default function ListPage() {
   const filterButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    Promise.all([getPopularMovies(), getGenres()]).then(([popularMovies, fetchedGenres]) => {
-      setMovies(popularMovies);
-      setGenres(fetchedGenres);
-      setIsLoading(false);
-    });
+    getGenres()
+      .then((fetchedGenres) => setGenres(fetchedGenres))
+      .catch((error) => {
+        console.error("Failed to fetch genres", error);
+        setGenres([]);
+      });
   }, []);
+
+  const fetchMovies = useCallback(async (page: number, searchTerm: string) => {
+    const trimmedQuery = searchTerm.trim();
+    setIsLoading(true);
+
+    try {
+      let data: MovieListResponse;
+
+      if (trimmedQuery.length > 1) {
+        data = await searchMovies(trimmedQuery, page);
+      } else {
+        data = await getPopularMovies(page);
+      }
+
+      setMovies(data.results ?? []);
+      setTotalPages(Math.max(1, data.total_pages ?? 1));
+    } catch (error) {
+      console.error("Failed to fetch movies", error);
+      setMovies([]);
+      setTotalPages(1);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchMovies(currentPage, query);
+  }, [currentPage, query, fetchMovies]);
 
   useEffect(() => {
     if (!isFilterOpen) {
@@ -76,22 +119,10 @@ export default function ListPage() {
     };
   }, [isFilterOpen]);
 
-  const handleSearch = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
     const nextQuery = event.target.value;
     setQuery(nextQuery);
-    setIsLoading(true);
-
-    try {
-      if (nextQuery.length > 1) {
-        const results = await searchMovies(nextQuery);
-        setMovies(results);
-      } else {
-        const popularMovies = await getPopularMovies();
-        setMovies(popularMovies);
-      }
-    } finally {
-      setIsLoading(false);
-    }
+    setCurrentPage(1);
   };
 
   const handleGenreClick = (genreId: number) => {
@@ -111,26 +142,12 @@ export default function ListPage() {
   };
 
   const handleGoHome = () => {
-    const shouldReset =
-      query.length > 0 || selectedGenres.length > 0 || sortOption !== "popularity.desc";
-
     setQuery("");
     setSelectedGenres([]);
     setSortOption("popularity.desc");
     setIsFilterOpen(false);
-
-    if (shouldReset) {
-      setIsLoading(true);
-      getPopularMovies()
-        .then((popularMovies) => setMovies(popularMovies))
-        .finally(() => setIsLoading(false));
-    }
-
+    setCurrentPage(1);
     searchInputRef.current?.focus();
-  };
-
-  const handleOpenGallery = () => {
-    navigate("/gallery");
   };
 
   const filteredAndSortedMovies = useMemo(() => {
@@ -173,6 +190,51 @@ export default function ListPage() {
     navigate(`/movie/${movie.id}`, { state: { movieIds } });
   };
 
+  const goToPreviousPage = () => {
+    setCurrentPage((prev) => Math.max(1, prev - 1));
+  };
+
+  const goToNextPage = () => {
+    setCurrentPage((prev) => (prev < totalPages ? prev + 1 : prev));
+  };
+
+  const renderMovieGrid = () => {
+    if (filteredAndSortedMovies.length === 0) {
+      return <div className="empty-state">No movies found.</div>;
+    }
+
+    return (
+      <div className="movie-grid">
+        {filteredAndSortedMovies.map((movie) => (
+          <button
+            key={movie.id}
+            type="button"
+            className="movie-card-link"
+            onClick={() => handleCardClick(movie)}
+          >
+            <div className="movie-card">
+              {movie.poster_path ? (
+                <img
+                  src={`https://image.tmdb.org/t/p/w300${movie.poster_path}`}
+                  alt={movie.title}
+                  className="movie-poster"
+                />
+              ) : (
+                <div className="no-image">No Image</div>
+              )}
+              <div className="movie-info">
+                <h3>{movie.title}</h3>
+                <p className="movie-rating">
+                  <StarIcon className="star-icon" /> {movie.vote_average.toFixed(1)}
+                </p>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="list-page">
       <h1>TMDB Movie Explorer</h1>
@@ -181,7 +243,7 @@ export default function ListPage() {
         <button type="button" className="page-action-btn" onClick={handleGoHome}>
           Home
         </button>
-        <button type="button" className="page-action-btn" onClick={handleOpenGallery}>
+        <button type="button" className="page-action-btn" onClick={() => navigate("/gallery")}>
           Gallery
         </button>
       </div>
@@ -256,38 +318,19 @@ export default function ListPage() {
         </select>
       </div>
 
-      {isLoading ? (
-        <LoadingSpinner />
-      ) : (
-        <div className="movie-grid">
-          {filteredAndSortedMovies.map((movie) => (
-            <button
-              key={movie.id}
-              type="button"
-              className="movie-card-link"
-              onClick={() => handleCardClick(movie)}
-            >
-              <div className="movie-card">
-                {movie.poster_path ? (
-                  <img
-                    src={`https://image.tmdb.org/t/p/w300${movie.poster_path}`}
-                    alt={movie.title}
-                    className="movie-poster"
-                  />
-                ) : (
-                  <div className="no-image">No Image</div>
-                )}
-                <div className="movie-info">
-                  <h3>{movie.title}</h3>
-                  <p className="movie-rating">
-                    <StarIcon className="star-icon" /> {movie.vote_average.toFixed(1)}
-                  </p>
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
+      {isLoading ? <div className="loading">Loading...</div> : renderMovieGrid()}
+
+      <div className="pagination-controls">
+        <button type="button" onClick={goToPreviousPage} disabled={currentPage === 1}>
+          Previous
+        </button>
+        <span className="pagination-info">
+          Page {currentPage} of {totalPages}
+        </span>
+        <button type="button" onClick={goToNextPage} disabled={currentPage >= totalPages}>
+          Next
+        </button>
+      </div>
     </div>
   );
 }

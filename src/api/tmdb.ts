@@ -10,18 +10,18 @@ export const tmdb = axios.create({
   },
 });
 
-export async function searchMovies(query: string) {
+export async function searchMovies(query: string, page = 1) {
   const res = await tmdb.get("/search/movie", {
-    params: { query, include_adult: false, language: "en-US", page: 1 },
+    params: { query, include_adult: false, language: "en-US", page },
   });
-  return res.data.results;
+  return res.data;
 }
 
-export async function getPopularMovies() {
+export async function getPopularMovies(page = 1) {
   const res = await tmdb.get("/movie/popular", {
-    params: { language: "en-US", page: 1 },
+    params: { language: "en-US", page },
   });
-  return res.data.results;
+  return res.data;
 }
 
 export async function getMovieDetails(id: number) {
@@ -32,8 +32,8 @@ export async function getMovieDetails(id: number) {
 }
 
 export async function getGenres() {
-  const res = await tmdb.get('/genre/movie/list', {
-    params: { language: 'en-US' }
+  const res = await tmdb.get("/genre/movie/list", {
+    params: { language: "en-US" },
   });
   return res.data.genres;
 }

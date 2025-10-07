@@ -2,7 +2,6 @@ import "./GalleryPage.css";
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getPopularMovies, getGenres } from "../api/tmdb";
-import LoadingSpinner from "../components/LoadingSpinner";
 
 interface Movie {
   id: number;
@@ -27,11 +26,17 @@ export default function GalleryPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    Promise.all([getPopularMovies(), getGenres()]).then(([popularMovies, fetchedGenres]) => {
-      setMovies(popularMovies);
-      setGenres(fetchedGenres);
-      setIsLoading(false);
-    });
+    Promise.all([getPopularMovies(), getGenres()])
+      .then(([popularMovies, fetchedGenres]) => {
+        setMovies((popularMovies?.results ?? []) as Movie[]);
+        setGenres(fetchedGenres);
+      })
+      .catch((error) => {
+        console.error("Failed to load gallery data", error);
+        setMovies([]);
+        setGenres([]);
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
   const handleToggleGenre = (genreId: number) => {
@@ -65,11 +70,9 @@ export default function GalleryPage() {
   return (
     <div className="gallery-page">
       <header className="gallery-header">
-        <div>
-          <button type="button" className="gallery-nav-btn" onClick={() => navigate("/")}>
-            {"< Back to Search"}
-          </button>
-        </div>
+        <button type="button" className="gallery-nav-btn" onClick={() => navigate("/")}>
+          &lt; Back to Search
+        </button>
         <h1>Movie Poster Gallery</h1>
       </header>
 
@@ -111,7 +114,7 @@ export default function GalleryPage() {
       </section>
 
       {isLoading ? (
-        <LoadingSpinner />
+        <div className="loading">Loading...</div>
       ) : (
         <div className="gallery-grid">
           {filteredMovies.map((movie) => (
